@@ -1,0 +1,353 @@
+{
+  "name": "CV_Filter",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1200,
+        -96
+      ],
+      "id": "34152634-88df-4ff4-a14d-5c14b81b2aca",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -592,
+        -80
+      ],
+      "id": "6d28f966-4b02-4ac9-a1dd-64a35e0804b3",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=JD:\n{{ $json.jd_text }}\n\nCV:\n{{ $json.cv_text }}\n\nInstructions:\n1) Extract 8–15 core requirements from the JD (skills, years, tools, domain, degree). Mark any explicitly CRITICAL ones.\n2) For each requirement, set \"present_in_cv\": true if clearly present; false if absent; or \"partial\": true when close/related.\n3) Compute match_percentage = round(100 * ( (#true + 0.5 * #partial ) / total_requirements )).\n4) Set match = true if match_percentage ≥ 70 OR all CRITICAL requirements are satisfied; else false.\n5) Output EXACTLY this JSON (and nothing else):\n{\n  \"match\": boolean,\n  \"match_percentage\": number,\n  \"summary\": string,\n  \"requirements\": [\n    { \"requirement\": string, \"critical\": boolean, \"present_in_cv\": boolean, \"partial\": boolean, \"evidence\": string }\n  ],\n  \"missing_requirements\": [string]\n}\n",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are a technical recruiter. Compare a Job Description (JD) and a Candidate CV fairly.\n• Consider synonyms/near-equivalents (e.g., React ~ Angular = partial, Java ~ Kotlin = partial).\n• Count partially satisfied requirements as 0.5 toward the score.\n• Be strict only for truly critical requirements explicitly marked in the JD.\nReturn JSON only; no extra text.\n"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        -288,
+        -192
+      ],
+      "id": "b50f5d53-5e61-4869-9f66-20d5520a9278",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        0
+      ],
+      "id": "a33069ab-2004-4e1a-afff-f0e0b55d5115",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "RmaLgv7OLdtPHm7Z",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\"match\",\"match_percentage\",\"summary\",\"requirements\",\"missing_requirements\"],\n  \"properties\": {\n    \"match\": { \"type\": \"boolean\" },\n    \"match_percentage\": { \"type\": \"number\", \"minimum\": 0, \"maximum\": 100 },\n    \"summary\": { \"type\": \"string\" },\n    \"requirements\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\"requirement\",\"critical\",\"present_in_cv\",\"partial\",\"evidence\"],\n        \"properties\": {\n          \"requirement\": { \"type\": \"string\" },\n          \"critical\": { \"type\": \"boolean\" },\n          \"present_in_cv\": { \"type\": \"boolean\" },\n          \"partial\": { \"type\": \"boolean\" },\n          \"evidence\": { \"type\": \"string\" }\n        }\n      }\n    },\n    \"missing_requirements\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } }\n  }\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -144,
+        -16
+      ],
+      "id": "a687a0a4-e90d-4f1c-9d24-6b85df457622",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "binaryPropertyName": "result",
+        "options": {
+          "fileName": "match_result.json"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        -192
+      ],
+      "id": "76da2437-431d-4484-88da-fc4df70f6dfa",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3e1a45e6-7c90-49c3-9f0d-e296518de66f",
+              "name": "jd_text",
+              "value": "={{$node[\"Extract JD\"].json.text}}",
+              "type": "string"
+            },
+            {
+              "id": "e31c8767-c253-4a1b-891d-a3f66ad7d985",
+              "name": "cv_text",
+              "value": "={{$node[\"Extract CV\"].json.text}}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -448,
+        -80
+      ],
+      "id": "781c027d-0dfc-4e8c-8880-9ad02f3130c1",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "fileSelector": "C:/Users/gayat/Downloads/sample_job_description.pdf",
+        "options": {
+          "dataPropertyName": "jd"
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        -224
+      ],
+      "id": "d070360c-c891-4b46-87eb-3be04d41cd31",
+      "name": "Read JD",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "fileSelector": "C:/Users/gayat/Downloads/sample_cv2_rohan.pdf",
+        "options": {
+          "dataPropertyName": "cv"
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -992,
+        32
+      ],
+      "id": "4db4194e-8b71-4451-a644-d7d6bed17baa",
+      "name": "Read CV"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "jd",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        -208
+      ],
+      "id": "72658655-7910-4ed9-b006-b1946bce3d66",
+      "name": "Extract JD"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "cv",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -784,
+        32
+      ],
+      "id": "313f2390-c137-4db3-ab34-e083fbb18a3c",
+      "name": "Extract CV"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:/Users/gayat/Downloads/match_result.json",
+        "dataPropertyName": "result",
+        "options": {
+          "append": true
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        160,
+        -192
+      ],
+      "id": "65fe8572-1a06-4277-8d60-a3adfa510e96",
+      "name": "Write File"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Read JD",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read CV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Write File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read JD": {
+      "main": [
+        [
+          {
+            "node": "Extract JD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read CV": {
+      "main": [
+        [
+          {
+            "node": "Extract CV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract JD": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract CV": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "07fda0e9-d33f-4a43-95af-855a57020ea0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "94f0182a6c66237bb50d4428c8081f433d9d5320d1975ea30cf6f62fed484c4f"
+  },
+  "id": "Fq5cLPKHqKI07FsI",
+  "tags": []
+}
