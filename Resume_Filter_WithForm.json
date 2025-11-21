@@ -1,0 +1,222 @@
+{
+  "name": "Resume_Filter_WithForm",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Candidate Screener",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Upload JD",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Upload Resume",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -496,
+        -64
+      ],
+      "id": "226e0126-b02e-4828-a555-5ef0791e000b",
+      "name": "On form submission",
+      "webhookId": "3f45c014-f67e-4a28-a199-c2dfac371eae"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "Upload_JD",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -336,
+        48
+      ],
+      "id": "cc0f7ac8-c789-47da-b7f9-f32ff3e4a8d4",
+      "name": "Extract from JD"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "Upload_Resume",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -320,
+        -112
+      ],
+      "id": "ec09a212-6f5a-4150-99e6-957a7fb14313",
+      "name": "Extract from Resume"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -160,
+        -32
+      ],
+      "id": "06898406-784c-4ad8-b045-756d0bdadd37",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an AI hiring assistant.\n \nYou will receive two inputs:\n1. A technical job description\n[{{ $item(0).$json.text }}].\n2. The resume of an applicant for this job.\n[{{ $item(1).$json.text }}] \n \nYour task is to:\n- Compare the resume against the Job Description.\n- Highlight which required skills and experience match.\n- Point out missing or unmatched skills/experience.\n- Provide a final fit rating on a scale from 0% to 100%.\n \nOutput Format:\n- Wherever a line break is needed, use <br> instead of \\n. Use <br> For single line break and <br><br> for double line break and so on and so forth.\n- Embed all headings between <strong> and </strong>\nUse well-structured bullet points with **highlighted skill names**. \nGroup your output under the following headings with spacing between each:\n \n?? Match Summary\n \n? Skills Matched:\n- <Skill>: <Why it matches>\n \n? Experience Matched:\n- <Experience area>: <Why it matches>\n \n? Skills Missing:\n- <Missing Skill>: <Reason it's considered missing>\n \n? Experience Gaps:\n- <Gap>: <Explanation>\n \n?? Final Fit Score: XX%\nInclude a final line \"Recommendation: <Replace with Alignment Text from the following Fit Score Range>:\n0% to 60% - Not Aliged\n61% to 79% - Moderately Aligned\n>= 80% - Well Aligned\n\n\nEnsure the final response is easy to read and professionally formatted.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        16,
+        -64
+      ],
+      "id": "08a59a69-0730-4b23-bbf7-4c2e9e563a2c",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -128,
+        176
+      ],
+      "id": "98c97d05-dd51-4251-9ea4-4a0453f5d1c3",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "7AQk4AHqzDOw11nK",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "Candidate Review Summary",
+        "completionMessage": "={{ $json.output }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [
+        320,
+        -64
+      ],
+      "id": "ffe7c7fb-7ef2-4597-94d0-1f2a8c992d06",
+      "name": "Form",
+      "webhookId": "093c3ffc-7849-429e-9b68-4f56171e8b26"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Extract from JD",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract from Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from JD": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Extract from Resume": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "94eb0f49-347a-4ba3-9494-0f01ba7fc5de",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f7503338b9b159efcdc1e6a717b52e67eeaa1eaf0f4fbf55fc26a2ba8d34e0c5"
+  },
+  "id": "kIamoLoAC37ozIpl",
+  "tags": []
+}
