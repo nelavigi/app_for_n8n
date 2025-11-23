@@ -1,0 +1,260 @@
+{
+  "name": "RunTestAutomation",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -912,
+        -96
+      ],
+      "id": "2dec262e-6308-442c-b43c-7a7e5cc69d7f",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "command": "cd /d C:\\Users\\gayat\\Downloads\\app_n8n && mvn clean test"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -752,
+        -96
+      ],
+      "id": "a8795d20-9aee-4bd8-ad00-3a5255829ed9",
+      "name": "Execute Command",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "dataPropertyName": "stdout",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        -432,
+        -96
+      ],
+      "id": "33220d6c-504a-4101-83b4-1124547ae88b",
+      "name": "XML",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const suite = $json.testsuite;\nreturn [{\n  json: {\n    total: parseInt(suite['tests']||0),\n    failures: parseInt(suite['failures']||0),\n    errors: parseInt(suite['errors']||0),\n    skipped: parseInt(suite['skipped']||0)\n  }  \n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        -96
+      ],
+      "id": "4239496f-9153-4d6d-a8db-d75f9c569d9e",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "command": "powershell Get-Content \"C:\\Users\\gayat\\Downloads\\app_n8n\\target\\surefire-reports\\TEST-com.bezkoder.spring.security.login.SpringBootLoginExampleApplicationTests.xml\" -Raw"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        -96
+      ],
+      "id": "3f62189b-9744-44b4-aed2-cc7296d7e0ae",
+      "name": "GetContent"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "164dfba5-852d-4927-87b2-5363608c6cd4",
+              "leftValue": "={{Number($json.failures || 0) + Number($json.errors || 0)}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -144,
+        -96
+      ],
+      "id": "bf1be852-a24a-460c-8279-5c03a13076f2",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a senior QA assistant. Analyze the following JUnit test results:\n\nTotal: {{ $json.total }}\nFailures: {{ $json.failures }}\nErrors: {{ $json.errors }}\nSkipped: {{ $json.skipped }}\n\nProvide: \n1. Likely root causes\n2. Which test cases failed\n3. Possible Selenium/JUnit fixes (selector changes, wait logic, credentials)\n4. A one-paragraph summary.\n\nReturn clean markdown.\n {{ $json.total }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        -208
+      ],
+      "id": "6a8f3df6-c77a-49b9-b29d-460b62815f51",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        32,
+        32
+      ],
+      "id": "05ba1865-c030-4338-806c-5f5bb6ae81a6",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "RmaLgv7OLdtPHm7Z",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "XfAr8TZfEPQKHvfZ",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/XfAr8TZfEPQKHvfZ",
+          "cachedResultName": "LLMDrivenRegistrationLogin"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {}
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        240,
+        32
+      ],
+      "id": "d33623e9-af19-41f5-85fe-7175d6dddaeb",
+      "name": "Call 'LLMDrivenRegistrationLogin'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Execute Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Command": {
+      "main": [
+        [
+          {
+            "node": "GetContent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GetContent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "XML": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetContent": {
+      "main": [
+        [
+          {
+            "node": "XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b9b7bab3-2e3f-4ec2-af27-582edfc0219b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "94f0182a6c66237bb50d4428c8081f433d9d5320d1975ea30cf6f62fed484c4f"
+  },
+  "id": "wUsfzI5MvWzxuRGY",
+  "tags": []
+}
