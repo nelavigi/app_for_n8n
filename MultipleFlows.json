@@ -1,0 +1,570 @@
+{
+  "name": "LLMDrivenRegistrationLogin",
+  "nodes": [
+    {
+      "parameters": {
+        "functionCode": "// Sample user data for testing (replace with your data)\nconst sampleUsers = [\n  { id: 1, username: 'John', email: 'john.doe@example.com', password: 'SafePass202!' },\n  { id: 2, username: 'Jane', email: 'jane.smith@example.com', password: 'SafePass202!' },\n  { id: 3, username: 'Mike', email: 'mike.johnson@example.com', password: 'SafePass202!' },\n  { id: 4, username: 'Sarah', email: 'sarah.wilson@example.com', password: 'SafePass202!' },\n  { id: 5, username: 'David', email: 'david.brown@example.com', password: 'SafePass202!' }\n];\n\n// Get random batch of users (adjust batch size as needed)\n//const batchSize = 2;\n//const shuffled = sampleUsers.sort(() => 0.5 - Math.random());\n//const selectedUsers = shuffled.slice(0, Math.min(batchSize, //sampleUsers.length));\n\n// Return each user as separate item for processing\nreturn sampleUsers.map(user => ({ json: user }));"
+      },
+      "id": "2007a7b1-c93a-4252-ac1b-0255f8cb993a",
+      "name": "Get User Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -864,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Username patterns for email generation\nconst usernamePatterns = [\n  { username: 'mgr', email_domain: 'gmail.com' },\n  { username: 'dev', email_domain: 'yahoo.com' },\n  { username: 'admin', email_domain: 'outlook.com' },\n  { username: 'user', email_domain: 'hotmail.com' },\n  { username: 'test', email_domain: 'gmail.com' }\n];\n\n// Return random pattern\nconst randomPattern = usernamePatterns[Math.floor(Math.random() * usernamePatterns.length)];\n\nreturn {\n  json: randomPattern\n};"
+      },
+      "id": "d15d65cc-3442-415b-a587-7aaa2b0ccf14",
+      "name": "Get Username Pattern",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process all incoming users in the batch\nreturn items.map(({ json: userData }) => {\n  // Get helper data from other nodes\n  const usernamePattern = $('Get Username Pattern').first().json;\n  const chatInput = $('Extract Info').item.json;\n\n  // Generate unique email and registration payload\n  const uuid = Math.random().toString(36).substring(2, 10);\n  const firstName = userData.username || 'John';\n  const password = userData.password || 'SafePass202!';\n\n  const baseEmail = usernamePattern.username || 'user';\n  const domain = usernamePattern.email_domain || 'gmail.com';\n  const uniqueEmail = `${firstName.toLowerCase()}_${baseEmail}_${uuid}@${domain}`;\n\n  const registrationData = {\n    email: uniqueEmail,\n    password,\n    username: firstName,\n  };\n\n  const registerUrl = chatInput.registerUrl || 'http://localhost:8080/register';\n\n  // Return new item\n  return {\n    json: {\n      registrationData,\n      registerUrl,\n      originalUserData: userData,\n      timestamp: new Date().toISOString(),\n    },\n  };\n});\n"
+      },
+      "id": "e9b3daac-1d1e-4936-80b2-90d1a2b1b09c",
+      "name": "Prepare Registration",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "http://localhost:8080/login",
+        "options": {
+          "bodyContentType": "form-urlencoded"
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "email",
+              "value": "={{ $node[\"Prepare Registration\"].json[\"registrationData\"][\"email\"] }}"
+            },
+            {
+              "name": "password",
+              "value": "={{ $node[\"Prepare Registration\"].json[\"registrationData\"][\"password\"] }}"
+            }
+          ]
+        }
+      },
+      "id": "31ed5661-28d0-433a-9642-580057851a01",
+      "name": "Login User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        384,
+        -80
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "functionCode": "// Safely combine registration + login data for all processed users\n\nconst registerItems = $items('Register User', 0, 0).map(i => i.json);\nconst loginItems = $items('Login User', 0, 0).map(i => i.json);\nconst prepItems = $items('Prepare Registration', 0, 0).map(i => i.json);\n\nconst results = [];\n\nfor (let i = 0; i < prepItems.length; i++) {\n  const userData = prepItems[i];\n  const registrationResponse = registerItems[i] || {};\n  const loginResponse = loginItems[i] || {};\n\n  const registrationSuccess =\n    registrationResponse?.success === true ||\n    (registrationResponse?.message && registrationResponse.message.toLowerCase().includes('success'));\n  const loginSuccess =\n    loginResponse?.success === true ||\n    (loginResponse?.message && loginResponse.message.toLowerCase().includes('success'));\n\n  const reg = userData.registrationData || {};\n  const originalUserData = userData.originalUserData || {};\n\n  results.push({\n    json: {\n      id: originalUserData.id || i + 1,\n      name: reg.username || originalUserData.username || 'N/A',\n      email: reg.email || originalUserData.email || 'N/A',\n      password: reg.password || originalUserData.password || 'N/A',\n      registration_status: registrationSuccess ? 'Success' : 'Failed',\n      registration_code: registrationResponse.statusCode || 'N/A',\n      registration_message:\n        registrationResponse.message || registrationResponse.error || 'Unknown',\n      login_status: loginSuccess ? 'Success' : 'Failed',\n      login_code: loginResponse.statusCode || 'N/A',\n      token: loginResponse.token || 'N/A',\n      user_id: loginResponse.userId || 'N/A',\n      timestamp: userData.timestamp || new Date().toISOString(),\n      overall_success:\n        registrationSuccess && loginSuccess ? 'Complete Success' : 'Partial/Failed',\n    },\n  });\n}\n\nreturn results;\n"
+      },
+      "id": "61a410a0-ca9d-4c09-a911-44f335064d14",
+      "name": "Prepare Success Result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        528,
+        -432
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare failure result data\nconst userData = $('Prepare Registration').item.json || {};\nconst registrationResponse = $('Register User').item.json || {};\n\nconst reg = userData.registrationData || {};\n\nconst resultData = {\n  id: userData.originalUserData?.id || 'N/A',\n  name: `${reg.firstName || reg.username || 'N/A'} ${reg.lastName || ''}`.trim(),\n  email: reg.userEmail || reg.email || 'N/A',\n  registration_status: 'Failed',\n  registration_code: registrationResponse.statusCode || 'N/A',\n  registration_message: registrationResponse.message || registrationResponse.error || 'Unknown error',\n  login_status: 'Not Attempted',\n  login_code: 'N/A',\n  token: 'N/A',\n  user_id: 'N/A',\n  timestamp: userData.timestamp || new Date().toISOString(),\n  overall_success: 'Failed'\n};\n\nreturn [{ json: resultData }];\n"
+      },
+      "id": "066b9abb-a42f-45bd-8424-b091cde3987a",
+      "name": "Prepare Failure Result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        384,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const items = $input.all(); // all results merged\nconst header = [\n  'ID', 'Name', 'Email', 'Password',\n  'Registration Status', 'Registration Code', 'Registration Message',\n  'Login Status', 'Login Code', 'Token', 'User ID',\n  'Timestamp', 'Overall Success'\n].join(',');\n\nconst escapeCSV = (str) => {\n  if (str === null || str === undefined) return 'N/A';\n  const s = String(str);\n  return s.includes(',') || s.includes('\"') || s.includes('\\n')\n    ? `\"${s.replace(/\"/g, '\"\"')}\"`\n    : s;\n};\n\nconst rows = items.map(item => {\n  const d = item.json;\n  return [\n    escapeCSV(d.id),\n    escapeCSV(d.name),\n    escapeCSV(d.email),\n    escapeCSV(d.password),\n    escapeCSV(d.registration_status),\n    escapeCSV(d.registration_code),\n    escapeCSV(d.registration_message),\n    escapeCSV(d.login_status),\n    escapeCSV(d.login_code),\n    escapeCSV(d.token),\n    escapeCSV(d.user_id),\n    escapeCSV(d.timestamp),\n    escapeCSV(d.overall_success)\n  ].join(',');\n});\n\nconst csvContent = [header, ...rows].join('\\n');\n\nconst successCount = items.filter(i => i.json.registration_status === 'Success').length;\nconst failureCount = items.length - successCount;\n\nreturn {\n  json: {\n    status: 'success',\n    csv_data: csvContent,\n    //total_users: items.length,\n    //success_count: successCount,\n    //failure_count: failureCount,\n    //message: `✅ ${successCount} successful, ❌ ${failureCount} failed`\n    message: 'convert csv to binary'\n  }\n};\n\n"
+      },
+      "id": "f01f03de-824e-4464-8c10-eac1b3366e56",
+      "name": "Save to CSV",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        848,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "content": "✅ **Automation Complete**\\n\\n**Results saved to:** ~home/Downloads/result.csv\\n\\n**Next User:** Processing continues with next user in batch\\n\\n**Check the CSV file for:**\\n- Registration success/failure details\\n- Login results\\n- API response codes\\n- Timestamps",
+        "height": 112,
+        "width": 432
+      },
+      "id": "52651133-c197-4e12-bbec-51de5d52198a",
+      "name": "Success Notice",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        512,
+        -592
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "67f367b7-ecda-4374-bab0-9f91b1869151",
+              "leftValue": "={{ $json[\"success\"]?.toString() }}",
+              "rightValue": "=true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        64,
+        -128
+      ],
+      "id": "071e68a1-1193-49ed-ae8a-915f4210f77d",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "={{ $json[\"registerUrl\"] }}",
+        "options": {
+          "bodyContentType": "form-urlencoded"
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "username",
+              "value": "={{ $json[\"registrationData\"][\"username\"] }}"
+            },
+            {
+              "name": "password",
+              "value": "={{$json[\"registrationData\"][\"password\"]}}"
+            },
+            {
+              "name": "email",
+              "value": "={{$json[\"registrationData\"][\"email\"]}}"
+            }
+          ]
+        }
+      },
+      "id": "861e78f2-f22d-46c9-a9ba-527fd24b5455",
+      "name": "Register User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        -128
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:/Users/gayat/Downloads/result.csv",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        -160
+      ],
+      "id": "f222e6c9-fd7a-4f13-af46-b1ebc1cd92fb",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convert CSV text (from Save to CSV node) into binary data for saving\nconst csvContent = $json.csv_data || '';\nconst buffer = Buffer.from(csvContent, 'utf-8');\n\n// Calculate success/failure counts\n//const allItems = $items('Save to CSV', 0, 0).map(i => i.json);\n//const totalUsers = allItems.length;\n//const successCount = allItems.filter(i => i.registration_status === 'Success').length;\n//const failureCount = totalUsers - successCount;\n\n// Prepare binary output for saving\nreturn {\n  binary: {\n    data: {\n      data: buffer.toString('base64'),\n      mimeType: 'text/csv',\n      fileName: 'registration_results.csv'\n    }\n  },\n  json: {\n    status: 'ready_to_save',\n    //total_users: totalUsers,\n    //success_count: successCount,\n    //failure_count: failureCount,\n    //message: `✅ ${successCount} successful, ❌ ${failureCount} failed`,\n    //hint: `📄 CSV saved at C:/Users/gayat/Downloads/result.csv`\n    message: 'result ready'\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        -160
+      ],
+      "id": "893aac75-632b-4051-ba3e-418c14299aa2",
+      "name": "Convert CSV to Binary"
+    },
+    {
+      "parameters": {
+        "public": true,
+        "authentication": "basicAuth",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1328,
+        -576
+      ],
+      "id": "1be25e9e-254e-473e-a30b-0e1ff361a4cd",
+      "name": "When chat message received",
+      "webhookId": "74a294a5-7e7f-4bac-8b42-dcfe4ecd3182",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "YmpiaCh5rPDnGDcn",
+          "name": "mycredential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log(\"Processing user:\", $json.username);\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        -144
+      ],
+      "id": "19496383-a2ab-4123-9a2a-76e9cc73bcd1",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        768,
+        -416
+      ],
+      "id": "49ba4d39-2e53-4844-aeb3-23cce836feaa",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "batchSize": "={{ $node[\"Extract Info\"].json[\"batchSize\"] }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -704,
+        -160
+      ],
+      "id": "f50ab52a-50da-4cba-b73b-f027a1608de4",
+      "name": "Split Users"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract URL and batch size from chat input\nconst inputText = $json.chatInput || $json.text || \"\";\n\n// Extract first URL in the message\nconst urlMatch = inputText.match(/https?:\\/\\/[^\\s]+/);\nconst registerUrl = urlMatch ? urlMatch[0] : \"http://localhost:8080/register\";\n\n// Extract batch size: any number before the word \"user\" or \"users\"\nconst batchMatch = inputText.match(/(\\d+)\\s*(user|users)/i);\nconst batchSize = batchMatch ? parseInt(batchMatch[1], 10) : 2; // default 2 if not found\n\nreturn [\n  {\n    json: {\n      message: `✅ Using registration URL: ${registerUrl} | Batch size: ${batchSize}`,\n      registerUrl,\n      batchSize\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -896,
+        -416
+      ],
+      "id": "581c88a9-e7cb-453e-a1b7-6e3e1be4966f",
+      "name": "Extract Info"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6d33f389-af69-4a96-865b-be486df53d2e",
+              "leftValue": "={{$json[\"chatInput\"]?.toLowerCase() || \"\"}}",
+              "rightValue": "test",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1088,
+        -576
+      ],
+      "id": "d45b6046-ecc8-4ab4-8abe-2646cf8f348f",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "wUsfzI5MvWzxuRGY",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/wUsfzI5MvWzxuRGY",
+          "cachedResultName": "RunTestAutomation"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {}
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -816,
+        -688
+      ],
+      "id": "b951ab13-195f-40cd-a89a-a8b1c116f620",
+      "name": "Call 'RunTestAutomation'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get User Data": {
+      "main": [
+        [
+          {
+            "node": "Split Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Registration": {
+      "main": [
+        [
+          {
+            "node": "Register User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login User": {
+      "main": [
+        [
+          {
+            "node": "Prepare Success Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Success Result": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Failure Result": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Save to CSV": {
+      "main": [
+        [
+          {
+            "node": "Convert CSV to Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Username Pattern": {
+      "main": [
+        [
+          {
+            "node": "Get User Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Login User",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Failure Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register User": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk": {
+      "main": [
+        []
+      ]
+    },
+    "Convert CSV to Binary": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Prepare Registration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Save to CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Users": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Info": {
+      "main": [
+        [
+          {
+            "node": "Get Username Pattern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Call 'RunTestAutomation'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3989246f-091a-43d4-b22d-9f75ee04e54e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "94f0182a6c66237bb50d4428c8081f433d9d5320d1975ea30cf6f62fed484c4f"
+  },
+  "id": "XfAr8TZfEPQKHvfZ",
+  "tags": []
+}
